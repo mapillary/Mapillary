@@ -24,6 +24,7 @@ import org.openstreetmap.josm.plugins.mapillary.gui.MapillaryMainDialog;
 import org.openstreetmap.josm.plugins.mapillary.gui.MapillaryPreferenceSetting;
 import org.openstreetmap.josm.plugins.mapillary.gui.imageinfo.ImageInfoHelpPopup;
 import org.openstreetmap.josm.plugins.mapillary.gui.imageinfo.ImageInfoPanel;
+import org.openstreetmap.josm.plugins.mapillary.gui.viewer.SequenceViewerPanel;
 import org.openstreetmap.josm.plugins.mapillary.oauth.MapillaryUser;
 import org.openstreetmap.josm.plugins.mapillary.utils.MapillaryProperties;
 import org.openstreetmap.josm.tools.ImageProvider;
@@ -91,6 +92,7 @@ public class MapillaryPlugin extends Plugin {
       MapillaryMainDialog.getInstance().setImageInfoHelp(new ImageInfoHelpPopup(
         MainApplication.getMap().addToggleDialog(ImageInfoPanel.getInstance(), false)
       ));
+      MainApplication.getMap().addToggleDialog(SequenceViewerPanel.getInstance(), false);
       MainApplication.getMap().addToggleDialog(MapillaryHistoryDialog.getInstance(), false);
       MainApplication.getMap().addToggleDialog(MapillaryChangesetDialog.getInstance(), false);
       MainApplication.getMap().addToggleDialog(MapillaryFilterDialog.getInstance(), false);
