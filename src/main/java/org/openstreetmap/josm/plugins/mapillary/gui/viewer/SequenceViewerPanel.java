@@ -5,8 +5,6 @@ import java.net.URL;
 
 import javax.swing.JPanel;
 
-import com.teamdev.jxbrowser.chromium.Browser;
-import com.teamdev.jxbrowser.chromium.swing.BrowserView;
 
 import org.openstreetmap.josm.gui.dialogs.ToggleDialog;
 import org.openstreetmap.josm.tools.I18n;
@@ -29,12 +27,21 @@ public final class SequenceViewerPanel extends ToggleDialog {
 
   private void initLayout() {
     JPanel root = new JPanel(new BorderLayout());
-
-    Browser browser = new Browser();
-    BrowserView view = new BrowserView(browser);
-    root.add(view, BorderLayout.CENTER);
-    browser.loadHTML(SNIPPET);
+    initBrowser(root);
     createLayout(root, false, null);
+  }
+
+  private void initBrowser(JPanel root) {
+    final SwtBrowserCanvas browserCanvas = new SwtBrowserCanvas();
+    root.add(browserCanvas, BorderLayout.CENTER);
+    // Initialise the native browser component, and if successful...
+    if (browserCanvas.initialise()) {
+      // ...navigate to the desired URL
+      browserCanvas.setUrl("https://www.mapillary.com");
+    }
+    else {
+      System.out.println("Failed to initialise browser");
+    }
   }
 
 
@@ -146,11 +153,6 @@ public final class SequenceViewerPanel extends ToggleDialog {
     "    </script>\n" +
     "</body>\n" +
     "</html>\n";
-
-
-  protected static URL getMapillaryJsSnippetUrl() {
-    return SequenceViewerPanel.class.getResource("test.html");
-  }
 
   public static SequenceViewerPanel getInstance() {
     synchronized (SequenceViewerPanel.class) {

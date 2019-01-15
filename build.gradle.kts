@@ -52,13 +52,8 @@ java.sourceCompatibility = JavaVersion.VERSION_1_8
 base.archivesBaseName = "Mapillary"
 
 dependencies {
-  implementation(files("./lib/jxbrowser-6.22.2.jar"))
-  implementation(files("./lib/jxbrowser-linux64-6.22.2.jar"))
-  implementation(files("./lib/jxbrowser-mac-6.22.2.jar"))
-  implementation(files("./lib/jxbrowser-win32-6.22.2.jar"))
-  implementation(files("./lib/jxbrowser-win64-6.22.2.jar"))
-  implementation(files("./lib/license.jar"))
-  testImplementation ("org.openstreetmap.josm:josm-unittest:SNAPSHOT"){ isChanging = true }
+  implementation(files("./lib/swt.jar"))
+  testImplementation("org.openstreetmap.josm:josm-unittest:SNAPSHOT") { isChanging = true }
   testImplementation("com.github.tomakehurst:wiremock:2.19.0")
   val junitVersion = "5.3.1"
   testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
