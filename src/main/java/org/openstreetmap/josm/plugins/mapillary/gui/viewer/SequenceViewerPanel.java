@@ -1,19 +1,12 @@
 package org.openstreetmap.josm.plugins.mapillary.gui.viewer;
 
 import java.awt.BorderLayout;
-import java.io.File;
 import java.net.URL;
 
 import javax.swing.JPanel;
 
-import com.sun.javafx.application.PlatformImpl;
-import com.sun.javafx.webkit.WebConsoleListener;
-import javafx.application.Platform;
-import javafx.embed.swing.JFXPanel;
-import javafx.scene.Group;
-import javafx.scene.Scene;
-import javafx.scene.web.WebEngine;
-import javafx.scene.web.WebView;
+import com.teamdev.jxbrowser.chromium.Browser;
+import com.teamdev.jxbrowser.chromium.swing.BrowserView;
 
 import org.openstreetmap.josm.gui.dialogs.ToggleDialog;
 import org.openstreetmap.josm.tools.I18n;
@@ -21,7 +14,6 @@ import org.openstreetmap.josm.tools.I18n;
 public final class SequenceViewerPanel extends ToggleDialog {
 
   private static SequenceViewerPanel instance;
-  private WebEngine webEngine;
 
   private SequenceViewerPanel() {
     super(
@@ -37,31 +29,12 @@ public final class SequenceViewerPanel extends ToggleDialog {
 
   private void initLayout() {
     JPanel root = new JPanel(new BorderLayout());
-    JFXPanel jfxPanel = new JFXPanel();
-    createScene(jfxPanel);
-    root.add(jfxPanel, BorderLayout.CENTER);
-    createLayout(root, false, null);
-    initWebView();
-  }
 
-  private void createScene(JFXPanel jfxPanel) {
-    PlatformImpl.startup(() -> {
-      Group group = new Group();
-      Scene scene = new Scene(group);
-      jfxPanel.setScene(scene);
-      WebView webView = new WebView();
-      group.getChildren().add(webView);
-      webEngine = webView.getEngine();
-      // URL url = this.getClass().getResource("/org/openstreetmap/josm/plugins/mapillary/gui/viewer/mapillaryviewer.html");
-      //  URL url = this.getClass().getResource("/org/openstreetmap/josm/plugins/mapillary/gui/viewer/test.html");
-      // File mapillaryJsViewerFile = new File("/web/test.html");
-      // URL url = SequenceViewerPanel.class.getResource("/org/openstreetmap/josm/plugins/mapillary/gui/viewer/test.html");
-      URL url = SequenceViewerPanel.class.getResource("test.html");
-      WebConsoleListener.setDefaultListener((aWebView, message, lineNumber, sourceId) -> {
-        System.out.println(message + "[at " + lineNumber + "]");
-      });
-      webEngine.loadContent(SNIPPET);
-    });
+    Browser browser = new Browser();
+    BrowserView view = new BrowserView(browser);
+    root.add(view, BorderLayout.CENTER);
+    browser.loadHTML(SNIPPET);
+    createLayout(root, false, null);
   }
 
 
@@ -177,11 +150,6 @@ public final class SequenceViewerPanel extends ToggleDialog {
 
   protected static URL getMapillaryJsSnippetUrl() {
     return SequenceViewerPanel.class.getResource("test.html");
-  }
-
-  private void initWebView() {
-    Platform.runLater(() -> {
-    });
   }
 
   public static SequenceViewerPanel getInstance() {
