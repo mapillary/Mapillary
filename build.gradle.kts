@@ -52,7 +52,6 @@ java.sourceCompatibility = JavaVersion.VERSION_1_8
 base.archivesBaseName = "Mapillary"
 
 dependencies {
-  implementation(files("./lib/swt.jar"))
   testImplementation("org.openstreetmap.josm:josm-unittest:SNAPSHOT") { isChanging = true }
   testImplementation("com.github.tomakehurst:wiremock:2.19.0")
   val junitVersion = "5.3.1"
