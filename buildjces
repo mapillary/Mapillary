@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+# The JCEF source code will exist at `./java-cef/src`
+cd ./java-cef
+# git clone https://bitbucket.org/chromiumembedded/java-cef.git src
+
+# Create and enter the `jcef_build` directory.
+# The `jcef_build` directory name is required by other JCEF tooling
+# and should not be changed.
+# mkdir jcef_build
+cd jcef_build
+
+# Mac OS X: Generate 64-bit Xcode project files.
+cmake -G "Xcode" -DPROJECT_ARCH="x86_64" ..
+# Open jcef.xcodeproj in Xcode
+# - Select Scheme > Edit Scheme and change the "Build Configuration" to "Release"
+# - Select Product > Build.
