@@ -52,6 +52,9 @@ java.sourceCompatibility = JavaVersion.VERSION_1_8
 base.archivesBaseName = "Mapillary"
 
 dependencies {
+  //implementation(files("../thirdparties/jcef/src/"))
+ // implementation(files("../thirdparties/jcef/src/jcef_build/native/Release/jcef.jar"))
+  implementation(fileTree("../thirdparties/jcef/src/jcef_build/native/Release"))
   testImplementation("org.openstreetmap.josm:josm-unittest:SNAPSHOT") { isChanging = true }
   testImplementation("com.github.tomakehurst:wiremock:2.19.0")
   val junitVersion = "5.3.1"

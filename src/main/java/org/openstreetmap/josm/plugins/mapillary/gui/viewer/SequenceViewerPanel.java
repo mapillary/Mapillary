@@ -1,10 +1,14 @@
 package org.openstreetmap.josm.plugins.mapillary.gui.viewer;
 
 import java.awt.BorderLayout;
-import java.net.URL;
+import java.awt.Component;
 
 import javax.swing.JPanel;
 
+import org.cef.CefApp;
+import org.cef.CefClient;
+import org.cef.OS;
+import org.cef.browser.CefBrowser;
 
 import org.openstreetmap.josm.gui.dialogs.ToggleDialog;
 import org.openstreetmap.josm.tools.I18n;
@@ -32,16 +36,11 @@ public final class SequenceViewerPanel extends ToggleDialog {
   }
 
   private void initBrowser(JPanel root) {
-    final SwtBrowserCanvas browserCanvas = new SwtBrowserCanvas();
-    root.add(browserCanvas, BorderLayout.CENTER);
-    // Initialise the native browser component, and if successful...
-    if (browserCanvas.initialise()) {
-      // ...navigate to the desired URL
-      browserCanvas.setUrl("https://www.mapillary.com");
-    }
-    else {
-      System.out.println("Failed to initialise browser");
-    }
+    final CefApp cefApp = CefApp.getInstance();
+    final CefClient client = cefApp.createClient();
+    final CefBrowser browser = client.createBrowser("http://www.mapillary.com", OS.isLinux(), false);
+    final Component browserUI = browser.getUIComponent();
+    root.add(browserUI, BorderLayout.CENTER);
   }
 
 
