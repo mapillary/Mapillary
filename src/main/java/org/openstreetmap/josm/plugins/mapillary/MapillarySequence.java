@@ -31,6 +31,7 @@ public class MapillarySequence {
    */
   private final String key;
   private UserProfile user;
+  private String organizationKey;
   /**
    * Epoch time when the sequence was created
    */
@@ -53,11 +54,12 @@ public class MapillarySequence {
    * @param userKey The user key
    * @param capturedAt The date the sequence was created.
    */
-  public MapillarySequence(final String key, final String userKey, final long capturedAt) {
+  public MapillarySequence(final String key, final String userKey, final String organizationKey, final long capturedAt) {
     this.images = new CopyOnWriteArrayList<>();
     this.key = key;
     this.capturedAt = capturedAt;
     setUser(userKey);
+    this.organizationKey = organizationKey;
   }
 
   /**
@@ -192,4 +194,8 @@ public class MapillarySequence {
       this.user = Caches.UserProfileCache.getInstance().get(userKey);
     }, "userProfileDownload_" + userKey).start();
  }
+
+  public String getOrganizationKey() {
+    return organizationKey;
+  }
 }

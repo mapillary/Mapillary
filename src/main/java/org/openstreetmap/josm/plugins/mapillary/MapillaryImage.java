@@ -58,6 +58,10 @@ public class MapillaryImage extends MapillaryAbstractImage {
     return getSequence().getUser();
   }
 
+  public String getOrganizationKey() {
+    return getSequence().getOrganizationKey();
+  }
+
   public void setAllDetections(Collection<ImageDetection> newDetections) {
     Logging.debug("Add {0} detections to image {1}", newDetections.size(), this.getKey());
     synchronized (detections) {

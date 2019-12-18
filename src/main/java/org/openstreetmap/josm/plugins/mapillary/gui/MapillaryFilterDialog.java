@@ -68,6 +68,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
   private final JCheckBox onlySigns = new JCheckBox(new OnlySignsAction());
   private final JComboBox<String> time;
   private final JTextField user;
+  private final JTextField organizationKey;
 
   private final JButton signChooser = new JButton(new SignChooserAction());
 
@@ -99,10 +100,16 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
 
     JPanel userSearchPanel = new JPanel();
     userSearchPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+
     this.user = new DisableShortcutsOnFocusGainedTextField(10);
     this.user.addActionListener(new UpdateAction());
     userSearchPanel.add(new JLabel(tr("User")));
     userSearchPanel.add(this.user);
+
+    this.organizationKey = new DisableShortcutsOnFocusGainedTextField(10);
+    this.organizationKey.addActionListener(new UpdateAction());
+    userSearchPanel.add(new JLabel(tr("Organization key")));
+    userSearchPanel.add(this.organizationKey);
 
     this.imported.setSelected(true);
     this.downloaded.setSelected(true);
@@ -157,6 +164,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     this.onlySigns.setEnabled(true);
     this.onlySigns.setSelected(false);
     this.user.setText("");
+    this.organizationKey.setText("");
     this.time.setSelectedItem(TIME_LIST[0]);
     this.spinnerModel.setValue(1);
     refresh();
@@ -193,6 +201,10 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
           }
           UserProfile userProfile = ((MapillaryImage) img).getUser();
           if (!"".equals(user.getText()) && (userProfile == null || !user.getText().equals(userProfile.getUsername()))) {
+            return true;
+          }
+          String imageOrganizationKey = ((MapillaryImage) img).getOrganizationKey();
+          if (!"".equals(organizationKey.getText()) && (imageOrganizationKey == null || !organizationKey.getText().equals(imageOrganizationKey))) {
             return true;
           }
         }
