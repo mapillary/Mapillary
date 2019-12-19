@@ -59,6 +59,16 @@ public class JsonSequencesDecoderTest {
   }
 
   @Test
+  public void testDecodeSequenceOrganizationKey() {
+    Collection<MapillarySequence> exampleSequences = JsonDecoder.decodeFeatureCollection(
+      Json.createReader(this.getClass().getResourceAsStream("/api/v3/responses/searchSequencesWithOrganizationKey.json")).readObject(),
+      JsonSequencesDecoder::decodeSequence
+    );
+    MapillarySequence seq = exampleSequences.iterator().next();
+    assertEquals("orgaKey123456", seq.getOrganizationKey());
+  }
+
+  @Test
   public void testDecodeSequencesInvalid() {
     // null input
     assertEquals(0, JsonDecoder.decodeFeatureCollection(null, JsonSequencesDecoder::decodeSequence).size());
