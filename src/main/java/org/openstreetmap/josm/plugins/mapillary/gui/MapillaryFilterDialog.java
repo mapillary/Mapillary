@@ -58,6 +58,10 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
   };
 
   private final JCheckBox filterByDateCheckbox;
+  private final JCheckBox filterByDateRangeCheckbox;
+  private final JTextField fromDate;
+  private final JTextField toDate;
+
   /**
    * Spinner to choose the range of dates.
    */
@@ -91,11 +95,22 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     time = new JComboBox<>(TIME_LIST);
     time.setEnabled(false);
     fromPanel.add(this.time);
-
     filterByDateCheckbox.addItemListener(itemE -> {
       spinner.setEnabled(filterByDateCheckbox.isSelected());
       time.setEnabled(filterByDateCheckbox.isSelected());
     });
+
+    JPanel dateRangePanel = new JPanel();
+    dateRangePanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+    filterByDateRangeCheckbox = new JCheckBox();
+    dateRangePanel.add(filterByDateRangeCheckbox);
+    dateRangePanel.add(new JLabel("From"));
+    fromDate = new JTextField("YYYY-MM-DD", 10);
+    dateRangePanel.add(fromDate);
+    dateRangePanel.add(new JLabel("To"));
+    toDate = new JTextField("YYYY-MM-DD", 10);
+    dateRangePanel.add(toDate);
+    dateRangePanel.add(new JLabel("CET time"));
 
     JPanel userSearchPanel = new JPanel();
     userSearchPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
@@ -119,9 +134,11 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     c.gridwidth = 2;
     panel.add(fromPanel, c);
     c.gridy = 2;
+    panel.add(dateRangePanel, c);
+    c.gridy = 3;
     panel.add(userSearchPanel, c);
     c.gridwidth = 1;
-    c.gridy = 3;
+    c.gridy = 4;
     panel.add(this.onlySigns, c);
     c.gridx = 1;
     panel.add(signChooserPanel, c);
@@ -170,6 +187,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     final boolean imported = this.imported.isSelected();
     final boolean downloaded = this.downloaded.isSelected();
     final boolean timeFilter = filterByDateCheckbox.isSelected();
+    final boolean dateRangeFilter = filterByDateCheckbox.isSelected();
     final boolean onlySigns = this.onlySigns.isSelected();
 
     // This predicate returns true is the image should be made invisible
