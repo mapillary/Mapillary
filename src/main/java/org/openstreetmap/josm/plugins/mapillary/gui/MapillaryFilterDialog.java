@@ -7,8 +7,13 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -23,6 +28,8 @@ import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.SideButton;
@@ -46,6 +53,8 @@ import org.openstreetmap.josm.tools.ImageProvider;
 public final class MapillaryFilterDialog extends ToggleDialog implements MapillaryDataListener {
 
   private static final long serialVersionUID = -4192029663670922103L;
+  public static final String YYYY_MM_DD = "yyyy/MM/dd";
+  public static final ZoneId UTC = ZoneId.of("UTC");
 
   private static MapillaryFilterDialog instance;
 
@@ -78,7 +87,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
 
   private MapillaryFilterDialog() {
     super(tr("Mapillary filter"), "mapillary-filter", tr("Open Mapillary filter dialog"), null, 200,
-        false, MapillaryPreferenceSetting.class);
+      false, MapillaryPreferenceSetting.class);
 
     this.signChooser.setEnabled(false);
     JPanel signChooserPanel = new JPanel();
@@ -96,22 +105,37 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     time = new JComboBox<>(TIME_LIST);
     time.setEnabled(false);
     fromPanel.add(this.time);
-    filterByDateCheckbox.addItemListener(itemE -> {
-      spinner.setEnabled(filterByDateCheckbox.isSelected());
-      time.setEnabled(filterByDateCheckbox.isSelected());
-    });
 
     JPanel dateRangePanel = new JPanel();
     dateRangePanel.setLayout(new FlowLayout(FlowLayout.LEFT));
     filterByDateRangeCheckbox = new JCheckBox();
     dateRangePanel.add(filterByDateRangeCheckbox);
     dateRangePanel.add(new JLabel("From"));
-    fromDate = new JTextField("YYYY-MM-DD", 10);
+    fromDate = new JTextField(10);
     dateRangePanel.add(fromDate);
     dateRangePanel.add(new JLabel("To"));
-    toDate = new JTextField("YYYY-MM-DD", 10);
+    toDate = new JTextField(10);
     dateRangePanel.add(toDate);
-    dateRangePanel.add(new JLabel("CET time"));
+    dateRangePanel.add(new JLabel(YYYY_MM_DD + " CET time"));
+
+    filterByDateCheckbox.addItemListener(itemE -> {
+      boolean fromTimeCriterionActive = filterByDateCheckbox.isSelected();
+      spinner.setEnabled(fromTimeCriterionActive);
+      time.setEnabled(fromTimeCriterionActive);
+      if (fromTimeCriterionActive) {
+        filterByDateRangeCheckbox.setSelected(false);
+      }
+    });
+
+    filterByDateRangeCheckbox.addItemListener(itemEvent -> {
+        boolean dateRangeCriterionActive = filterByDateRangeCheckbox.isSelected();
+        fromDate.setEnabled(dateRangeCriterionActive);
+        toDate.setEnabled(dateRangeCriterionActive);
+        if (dateRangeCriterionActive) {
+          filterByDateCheckbox.setSelected(false);
+        }
+      }
+    );
 
     JPanel userSearchPanel = new JPanel();
     userSearchPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
@@ -184,6 +208,10 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     this.organizationKey.setText("");
     this.time.setSelectedItem(TIME_LIST[0]);
     this.spinnerModel.setValue(1);
+    this.filterByDateCheckbox.setSelected(false);
+    this.filterByDateRangeCheckbox.setSelected(false);
+    this.fromDate.setText(YYYY_MM_DD);
+    this.toDate.setText(YYYY_MM_DD);
     refresh();
   }
 
@@ -195,7 +223,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     final boolean imported = this.imported.isSelected();
     final boolean downloaded = this.downloaded.isSelected();
     final boolean timeFilter = filterByDateCheckbox.isSelected();
-    final boolean dateRangeFilter = filterByDateCheckbox.isSelected();
+    final boolean dateRangeFilter = filterByDateRangeCheckbox.isSelected();
     final boolean onlySigns = this.onlySigns.isSelected();
 
     // This predicate returns true is the image should be made invisible
@@ -205,6 +233,9 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
           return true;
         }
         if (timeFilter && checkValidTime(img)) {
+          return true;
+        }
+        if (dateRangeFilter && checkNotBetweenDate(img)) {
           return true;
         }
         if (!imported && img instanceof MapillaryImportedImage) {
@@ -247,12 +278,39 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     return false;
   }
 
+  private boolean checkNotBetweenDate(MapillaryAbstractImage img) {
+    final DateTimeFormatter formatter = DateTimeFormatter.ofPattern(YYYY_MM_DD);
+    String fromDateAsString = fromDate.getText();
+    boolean isAfter = true;
+    long capturedAt = img.getCapturedAt();
+    if (capturedAt == 0) {
+      return true;
+    }
+    LocalDate captureDate = Instant.ofEpochMilli(capturedAt).atZone(UTC).toLocalDate();
+    if (StringUtils.isNotEmpty(fromDateAsString)) {
+      LocalDate fromDate = LocalDate.parse(fromDateAsString, formatter);
+      long fromInstant = getInstant(fromDate);
+      isAfter = capturedAt >= fromInstant;
+    }
+    String toDateAsString = toDate.getText();
+    boolean isBefore = true;
+    if (StringUtils.isNotEmpty(toDateAsString)) {
+      LocalDate toDate = LocalDate.parse(toDateAsString, formatter);
+      long toInstant = getInstant(toDate);
+      isBefore = capturedAt <= toInstant;
+    }
+    return !isAfter || !isBefore;
+  }
+
+  private long getInstant(LocalDate fromDate) {
+    return fromDate.atStartOfDay(UTC).toInstant().toEpochMilli();
+  }
+
   /**
    * Checks if the image fulfills the sign conditions.
    *
    * @param img The {@link MapillaryAbstractImage} object that is going to be
-   * checked.
-   *
+   *            checked.
    * @return {@code true} if it fulfills the conditions; {@code false}
    * otherwise.
    */
