@@ -1,6 +1,8 @@
 // License: GPL. For details, see LICENSE file.
 package org.openstreetmap.josm.plugins.mapillary.gui;
 
+import static java.awt.FlowLayout.LEFT;
+
 import static org.openstreetmap.josm.tools.I18n.tr;
 
 import java.awt.FlowLayout;
@@ -11,13 +13,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import javax.swing.AbstractAction;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -25,6 +28,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
@@ -43,6 +47,7 @@ import org.openstreetmap.josm.plugins.mapillary.MapillaryLayer;
 import org.openstreetmap.josm.plugins.mapillary.model.ImageDetection;
 import org.openstreetmap.josm.plugins.mapillary.model.UserProfile;
 import org.openstreetmap.josm.tools.ImageProvider;
+import org.openstreetmap.josm.tools.Logging;
 
 /**
  * ToggleDialog that lets you filter the images that are being shown.
@@ -84,6 +89,9 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
   private final JTextField organizationKey;
 
   private final JButton signChooser = new JButton(new SignChooserAction());
+  private final JRadioButton buttonBoth;
+  private final JRadioButton button360;
+  private final JRadioButton buttonNormal;
 
   private MapillaryFilterDialog() {
     super(tr("Mapillary filter"), "mapillary-filter", tr("Open Mapillary filter dialog"), null, 200,
@@ -91,11 +99,11 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
 
     this.signChooser.setEnabled(false);
     JPanel signChooserPanel = new JPanel();
-    signChooserPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+    signChooserPanel.setLayout(new FlowLayout(LEFT));
     signChooserPanel.add(this.signChooser);
 
     JPanel fromPanel = new JPanel();
-    fromPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+    fromPanel.setLayout(new FlowLayout(LEFT));
     filterByDateCheckbox = new JCheckBox(tr("Not older than: "));
     fromPanel.add(filterByDateCheckbox);
     this.spinnerModel = new SpinnerNumberModel(1.0, 0, 10000, .1);
@@ -107,14 +115,14 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     fromPanel.add(this.time);
 
     JPanel dateRangePanel = new JPanel();
-    dateRangePanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+    dateRangePanel.setLayout(new FlowLayout(LEFT));
     filterByDateRangeCheckbox = new JCheckBox();
     dateRangePanel.add(filterByDateRangeCheckbox);
     dateRangePanel.add(new JLabel("From"));
-    fromDate = new JTextField(10);
+    fromDate = new DisableShortcutsOnFocusGainedTextField(10);
     dateRangePanel.add(fromDate);
     dateRangePanel.add(new JLabel("To"));
-    toDate = new JTextField(10);
+    toDate = new DisableShortcutsOnFocusGainedTextField(10);
     dateRangePanel.add(toDate);
     dateRangePanel.add(new JLabel(YYYY_MM_DD + " CET time"));
 
@@ -138,7 +146,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     );
 
     JPanel userSearchPanel = new JPanel();
-    userSearchPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+    userSearchPanel.setLayout(new FlowLayout(LEFT));
 
     this.user = new DisableShortcutsOnFocusGainedTextField(10);
     this.user.addActionListener(new UpdateAction());
@@ -152,6 +160,19 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
 
     this.imported.setSelected(true);
     this.downloaded.setSelected(true);
+
+    JPanel panoramicPanel = new JPanel();
+    panoramicPanel.setLayout(new FlowLayout(LEFT));
+    ButtonGroup buttonGroupPanoramic = new ButtonGroup();
+    buttonBoth = new JRadioButton("Both");
+    buttonGroupPanoramic.add(buttonBoth);
+    panoramicPanel.add(buttonBoth);
+    button360 = new JRadioButton("360°");
+    buttonGroupPanoramic.add(button360);
+    panoramicPanel.add(button360);
+    buttonNormal = new JRadioButton("Normal");
+    buttonGroupPanoramic.add(buttonNormal);
+    panoramicPanel.add(buttonNormal);
 
     JPanel panel = new JPanel();
     panel.setLayout(new GridBagLayout());
@@ -173,6 +194,9 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     panel.add(this.onlySigns, c);
     c.gridx = 1;
     panel.add(signChooserPanel, c);
+    c.gridx = 0;
+    c.gridy = 5;
+    panel.add(panoramicPanel, c);
 
     createLayout(panel, true, Arrays.asList(new SideButton(new UpdateAction()), new SideButton(new ResetAction())));
   }
@@ -210,8 +234,9 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     this.spinnerModel.setValue(1);
     this.filterByDateCheckbox.setSelected(false);
     this.filterByDateRangeCheckbox.setSelected(false);
-    this.fromDate.setText(YYYY_MM_DD);
-    this.toDate.setText(YYYY_MM_DD);
+    this.fromDate.setText("");
+    this.toDate.setText("");
+    this.buttonBoth.setSelected(true);
     refresh();
   }
 
@@ -224,6 +249,7 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     final boolean downloaded = this.downloaded.isSelected();
     final boolean timeFilter = filterByDateCheckbox.isSelected();
     final boolean dateRangeFilter = filterByDateRangeCheckbox.isSelected();
+    final boolean panoramaFilter = !buttonBoth.isSelected();
     final boolean onlySigns = this.onlySigns.isSelected();
 
     // This predicate returns true is the image should be made invisible
@@ -240,6 +266,11 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
         }
         if (!imported && img instanceof MapillaryImportedImage) {
           return true;
+        }
+        if (panoramaFilter) {
+          if (img.isPanorama() == buttonNormal.isSelected()) {
+            return true;
+          }
         }
         if (img instanceof MapillaryImage) {
           if (!downloaded) {
@@ -286,18 +317,25 @@ public final class MapillaryFilterDialog extends ToggleDialog implements Mapilla
     if (capturedAt == 0) {
       return true;
     }
-    LocalDate captureDate = Instant.ofEpochMilli(capturedAt).atZone(UTC).toLocalDate();
     if (StringUtils.isNotEmpty(fromDateAsString)) {
-      LocalDate fromDate = LocalDate.parse(fromDateAsString, formatter);
-      long fromInstant = getInstant(fromDate);
-      isAfter = capturedAt >= fromInstant;
+      try {
+        LocalDate fromDate = LocalDate.parse(fromDateAsString, formatter);
+        long fromInstant = getInstant(fromDate);
+        isAfter = capturedAt >= fromInstant;
+      } catch (DateTimeParseException e) {
+        Logging.log(Logging.LEVEL_WARN, "Exception while trying to parse the from date in the image filter", e);
+      }
     }
     String toDateAsString = toDate.getText();
     boolean isBefore = true;
     if (StringUtils.isNotEmpty(toDateAsString)) {
-      LocalDate toDate = LocalDate.parse(toDateAsString, formatter);
-      long toInstant = getInstant(toDate);
-      isBefore = capturedAt <= toInstant;
+      try {
+        LocalDate toDate = LocalDate.parse(toDateAsString, formatter);
+        long toInstant = getInstant(toDate);
+        isBefore = capturedAt <= toInstant;
+      } catch (DateTimeParseException e) {
+        Logging.log(Logging.LEVEL_WARN, "Exception while trying to parse the from date in the image filter", e);
+      }
     }
     return !isAfter || !isBefore;
   }
