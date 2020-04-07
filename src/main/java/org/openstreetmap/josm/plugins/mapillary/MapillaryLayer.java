@@ -39,6 +39,7 @@ import org.openstreetmap.josm.actions.upload.UploadHook;
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.osm.BBox;
 import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.data.osm.DataSourceChangeEvent;
 import org.openstreetmap.josm.data.osm.DataSourceListener;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
@@ -100,8 +101,14 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
     Math.pow(TRAFFIC_SIGN_SIZE, 2) - Math.pow(TRAFFIC_SIGN_SIZE / 2d, 2)
   ) / 3;
 
-  private static final DataSourceListener DATASET_LISTENER = event -> SwingUtilities
-      .invokeLater(MapillaryDownloader::downloadOSMArea);
+  private static class DataSetSourceListener implements DataSourceListener {
+    @Override
+    public void dataSourceChange(DataSourceChangeEvent event) {
+      SwingUtilities.invokeLater(MapillaryDownloader::downloadOSMArea);
+    }
+  }
+
+  private static final DataSourceListener DATASET_LISTENER = new DataSetSourceListener();
 
   /** Unique instance of the class. */
   private static MapillaryLayer instance;
@@ -118,6 +125,8 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
 
   private volatile TexturePaint hatched;
   private final MapillaryLocationChangeset locationChangeset = new MapillaryLocationChangeset();
+  private static AlphaComposite fadeComposite = AlphaComposite
+    .getInstance(AlphaComposite.SRC_OVER, MapillaryProperties.UNSELECTED_OPACITY.get().floatValue());
 
   private MapillaryLayer() {
     super(I18n.tr("Mapillary Images"));
@@ -326,6 +335,8 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
   @Override
   public synchronized void paint(final Graphics2D g, final MapView mv, final Bounds box) {
     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    fadeComposite = AlphaComposite
+      .getInstance(AlphaComposite.SRC_OVER, MapillaryProperties.UNSELECTED_OPACITY.get().floatValue());
     if (MainApplication.getLayerManager().getActiveLayer() == this) {
       // paint remainder
       g.setPaint(this.hatched);
@@ -354,13 +365,19 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
       if (seq.getImages().contains(selectedImage)) {
         g.setColor(
           seq.getKey() == null ? MapillaryColorScheme.SEQ_IMPORTED_SELECTED : MapillaryColorScheme.SEQ_SELECTED
-        );
+          );
+      } else if (selectedImage == null) {
+        g.setColor(
+          seq.getKey() == null ? MapillaryColorScheme.SEQ_IMPORTED_UNSELECTED : MapillaryColorScheme.SEQ_UNSELECTED
+          );
       } else {
         g.setColor(
           seq.getKey() == null ? MapillaryColorScheme.SEQ_IMPORTED_UNSELECTED : MapillaryColorScheme.SEQ_UNSELECTED
-        );
+          );
+        g.setComposite(fadeComposite);
       }
       g.draw(MapViewGeometryUtil.getSequencePath(mv, seq));
+      g.setComposite(AlphaComposite.SrcOver);
     }
     for (MapillaryAbstractImage imageAbs : this.data.getImages()) {
       if (imageAbs.isVisible() && mv != null && mv.contains(mv.getPoint(imageAbs.getMovingLatLon()))) {
@@ -384,7 +401,10 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
     }
     final MapillaryAbstractImage selectedImg = getData().getSelectedImage();
     final Point p = MainApplication.getMap().mapView.getPoint(img.getMovingLatLon());
-
+    Composite composite = g.getComposite();
+    if (selectedImg != null && !selectedImg.getSequence().equals(img.getSequence())) {
+      g.setComposite(fadeComposite);
+    }
     // Determine colors
     final Color markerC;
     final Color directionC;
@@ -411,12 +431,12 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
     g.fillOval(p.x - IMG_MARKER_RADIUS, p.y - IMG_MARKER_RADIUS, 2 * IMG_MARKER_RADIUS, 2 * IMG_MARKER_RADIUS);
 
     // Paint highlight for selected or highlighted images
-    if (img.equals(getData().getHighlightedImage()) || getData().getMultiSelectedImages().contains(img)) {
+    if (getData().getHighlightedImages().contains(img) || img.equals(getData().getHighlightedImage())
+      || getData().getMultiSelectedImages().contains(img)) {
       g.setColor(Color.WHITE);
       g.setStroke(new BasicStroke(2));
       g.drawOval(p.x - IMG_MARKER_RADIUS, p.y - IMG_MARKER_RADIUS, 2 * IMG_MARKER_RADIUS, 2 * IMG_MARKER_RADIUS);
     }
-
 
     if (img instanceof MapillaryImage && !((MapillaryImage) img).getDetections().isEmpty()) {
       Path2D trafficSign = new Path2D.Double();
@@ -430,6 +450,7 @@ public final class MapillaryLayer extends AbstractModifiableLayer implements
       g.setColor(Color.RED);
       g.draw(trafficSign);
     }
+    g.setComposite(composite);
   }
 
   @Override

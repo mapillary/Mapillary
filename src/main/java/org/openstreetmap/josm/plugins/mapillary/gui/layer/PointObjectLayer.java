@@ -54,21 +54,36 @@ import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.Data;
 import org.openstreetmap.josm.data.DataSource;
 import org.openstreetmap.josm.data.coor.EastNorth;
+import org.openstreetmap.josm.data.osm.DataSelectionListener;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.DataSourceChangeEvent;
 import org.openstreetmap.josm.data.osm.DataSourceListener;
 import org.openstreetmap.josm.data.osm.DownloadPolicy;
+import org.openstreetmap.josm.data.osm.HighlightUpdateListener;
+import org.openstreetmap.josm.data.osm.INode;
 import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.OsmData;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.UploadPolicy;
+import org.openstreetmap.josm.data.osm.event.AbstractDatasetChangedEvent;
+import org.openstreetmap.josm.data.osm.event.DataSetListenerAdapter;
+import org.openstreetmap.josm.data.osm.event.DataSetListenerAdapter.Listener;
+import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.data.osm.visitor.paint.AbstractMapRenderer;
 import org.openstreetmap.josm.data.osm.visitor.paint.MapRendererFactory;
+import org.openstreetmap.josm.data.osm.visitor.paint.relations.MultipolygonCache;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.MapViewState.MapViewPoint;
 import org.openstreetmap.josm.gui.dialogs.LayerListDialog;
+import org.openstreetmap.josm.gui.layer.AbstractOsmDataLayer;
 import org.openstreetmap.josm.gui.layer.Layer;
+import org.openstreetmap.josm.gui.layer.LayerManager.LayerAddEvent;
+import org.openstreetmap.josm.gui.layer.LayerManager.LayerChangeListener;
+import org.openstreetmap.josm.gui.layer.LayerManager.LayerOrderChangeEvent;
+import org.openstreetmap.josm.gui.layer.LayerManager.LayerRemoveEvent;
 import org.openstreetmap.josm.gui.layer.OsmDataLayer;
+import org.openstreetmap.josm.gui.layer.OsmDataLayer.DataCountVisitor;
 import org.openstreetmap.josm.gui.mappaint.MapPaintStyles;
 import org.openstreetmap.josm.gui.mappaint.loader.MapPaintStyleLoader;
 import org.openstreetmap.josm.gui.mappaint.mapcss.MapCSSStyleSource;
@@ -77,12 +92,16 @@ import org.openstreetmap.josm.gui.progress.NullProgressMonitor;
 import org.openstreetmap.josm.gui.progress.swing.PleaseWaitProgressMonitor;
 import org.openstreetmap.josm.io.GeoJSONReader;
 import org.openstreetmap.josm.io.IllegalDataException;
+import org.openstreetmap.josm.plugins.mapillary.MapillaryAbstractImage;
 import org.openstreetmap.josm.plugins.mapillary.MapillaryData;
+import org.openstreetmap.josm.plugins.mapillary.MapillaryDataListener;
 import org.openstreetmap.josm.plugins.mapillary.MapillaryImage;
 import org.openstreetmap.josm.plugins.mapillary.MapillaryLayer;
 import org.openstreetmap.josm.plugins.mapillary.MapillaryPlugin;
 import org.openstreetmap.josm.plugins.mapillary.data.osm.event.FilterEventListener;
 import org.openstreetmap.josm.plugins.mapillary.gui.MapillaryMainDialog;
+import org.openstreetmap.josm.plugins.mapillary.gui.dialog.MapillaryExpertFilterDialog;
+import org.openstreetmap.josm.plugins.mapillary.model.ImageDetection;
 import org.openstreetmap.josm.plugins.mapillary.oauth.MapillaryUser;
 import org.openstreetmap.josm.plugins.mapillary.oauth.OAuthUtils;
 import org.openstreetmap.josm.plugins.mapillary.utils.MapillaryURL;
@@ -96,7 +115,9 @@ import org.openstreetmap.josm.tools.OpenBrowser;
 /**
  * Mapillary Point Object layer
  */
-public class PointObjectLayer extends OsmDataLayer implements DataSourceListener, MouseListener {
+public class PointObjectLayer extends AbstractOsmDataLayer
+  implements DataSourceListener, MouseListener, Listener, HighlightUpdateListener, DataSelectionListener,
+  MapillaryDataListener, LayerChangeListener {
   private final Collection<DataSource> dataSources = new HashSet<>();
   private static final String NAME = marktr("Mapillary Point Objects");
   private static final int HATCHED_SIZE = 15;
@@ -104,6 +125,8 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
   private final FilterEventListener tableModelListener;
   private static final String PAINT_STYLE_SOURCE = "resource://mapcss/Mapillary.mapcss";
   private static MapCSSStyleSource mapcss;
+  private final DataSet data;
+  private final DataSetListenerAdapter dataSetListenerAdapter;
 
   /**
    * a texture for non-downloaded area Copied from OsmDataLayer
@@ -115,12 +138,11 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
   }
 
   private static MapCSSStyleSource getMapCSSStyle() {
-    List<MapCSSStyleSource> styles = MapPaintStyles.getStyles().getStyleSources().parallelStream().filter(
-      MapCSSStyleSource.class::isInstance
-    ).map(MapCSSStyleSource.class::cast).filter(s -> PAINT_STYLE_SOURCE.equals(s.url))
-      .collect(Collectors.toList());
+    List<MapCSSStyleSource> styles = MapPaintStyles.getStyles().getStyleSources().parallelStream()
+        .filter(MapCSSStyleSource.class::isInstance).map(MapCSSStyleSource.class::cast)
+        .filter(s -> PAINT_STYLE_SOURCE.equals(s.url)).collect(Collectors.toList());
     mapcss = styles.isEmpty() ? new MapCSSStyleSource(PAINT_STYLE_SOURCE, "Mapillary", "Mapillary Point Objects")
-      : styles.get(0);
+        : styles.get(0);
     return mapcss;
   }
 
@@ -141,7 +163,8 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
   }
 
   public PointObjectLayer() {
-    super(new DataSet(), tr(NAME), null);
+    super(NAME);
+    data = new DataSet();
     data.setUploadPolicy(UploadPolicy.BLOCKED);
     data.setDownloadPolicy(DownloadPolicy.BLOCKED);
     data.lock();
@@ -156,8 +179,21 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
       MapPaintStyleLoader.reloadStyle(mapcss);
       MapPaintStyles.fireMapPaintStyleEntryUpdated(MapPaintStyles.getStyles().getStyleSources().indexOf(mapcss));
     }
-    tableModelListener = new FilterEventListener(data);
+    tableModelListener = new FilterEventListener(this, data);
+    MapillaryExpertFilterDialog.getInstance().getFilterModel().addTableModelListener(tableModelListener);
     MainApplication.getMap().filterDialog.getFilterModel().addTableModelListener(tableModelListener);
+    tableModelListener.tableChanged(null);
+
+    this.data.setName(NAME);
+    this.dataSetListenerAdapter = new DataSetListenerAdapter(this);
+    data.addDataSetListener(dataSetListenerAdapter);
+    data.addDataSetListener(MultipolygonCache.getInstance());
+    data.addHighlightUpdateListener(this);
+    data.addSelectionListener(this);
+    if (MapillaryLayer.hasInstance()) {
+      MapillaryLayer.getInstance().getData().addListener(this);
+    }
+    MainApplication.getLayerManager().addLayerChangeListener(this);
   }
 
   @Override
@@ -241,9 +277,8 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
 
       // paint remainder
       MapViewPoint anchor = mv.getState().getPointFor(new EastNorth(0, 0));
-      Rectangle2D anchorRect = new Rectangle2D.Double(
-        anchor.getInView().getX() % HATCHED_SIZE, anchor.getInView().getY() % HATCHED_SIZE, HATCHED_SIZE, HATCHED_SIZE
-      );
+      Rectangle2D anchorRect = new Rectangle2D.Double(anchor.getInView().getX() % HATCHED_SIZE,
+          anchor.getInView().getY() % HATCHED_SIZE, HATCHED_SIZE, HATCHED_SIZE);
       if (hatched != null) {
         g.setPaint(new TexturePaint(hatched, anchorRect));
       }
@@ -256,17 +291,14 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
     }
 
     AbstractMapRenderer painter = MapRendererFactory.getInstance().createActiveRenderer(g, mv, inactive);
-    painter.enableSlowOperations(
-        mv.getMapMover() == null || !mv.getMapMover().movementInProgress()
-            || !OsmDataLayer.PROPERTY_HIDE_LABELS_WHILE_DRAGGING.get()
-    );
+    painter.enableSlowOperations(mv.getMapMover() == null || !mv.getMapMover().movementInProgress()
+        || !OsmDataLayer.PROPERTY_HIDE_LABELS_WHILE_DRAGGING.get());
     painter.render(data, virtual, box);
     MainApplication.getMap().conflictDialog.paintConflicts(g, mv);
   }
 
   @Override
   public void selectionChanged(SelectionChangeEvent event) {
-    super.selectionChanged(event);
     OsmPrimitive prim = event.getSelection().parallelStream().filter(p -> p.hasKey("detections")).findFirst()
         .orElse(null);
     if (prim != null && MapillaryLayer.hasInstance()) {
@@ -303,23 +335,23 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
     List<Map<String, String>> detections = new ArrayList<>();
     try (JsonParser parser = Json
         .createParser(new ByteArrayInputStream(detectionsValue.getBytes(StandardCharsets.UTF_8)))) {
-        while (parser.hasNext() && JsonParser.Event.START_ARRAY == parser.next()) {
-          JsonArray array = parser.getArray();
-          for (JsonObject obj : array.getValuesAs(JsonObject.class)) {
-            Map<String, String> detection = new HashMap<>();
-            for (Map.Entry<String, JsonValue> entry : obj.entrySet()) {
-              if (entry.getValue().getValueType().equals(JsonValue.ValueType.STRING)) {
-                detection.putIfAbsent(entry.getKey(), ((JsonString) entry.getValue()).getString());
-              } else {
-                detection.putIfAbsent(entry.getKey(), entry.getValue().toString());
-              }
+      while (parser.hasNext() && JsonParser.Event.START_ARRAY == parser.next()) {
+        JsonArray array = parser.getArray();
+        for (JsonObject obj : array.getValuesAs(JsonObject.class)) {
+          Map<String, String> detection = new HashMap<>();
+          for (Map.Entry<String, JsonValue> entry : obj.entrySet()) {
+            if (entry.getValue().getValueType().equals(JsonValue.ValueType.STRING)) {
+              detection.putIfAbsent(entry.getKey(), ((JsonString) entry.getValue()).getString());
+            } else {
+              detection.putIfAbsent(entry.getKey(), entry.getValue().toString());
             }
-            detections.add(detection);
           }
+          detections.add(detection);
         }
-      } catch (JsonException e) {
-        Logging.error(e);
       }
+    } catch (JsonException e) {
+      Logging.error(e);
+    }
     return detections;
   }
 
@@ -330,32 +362,33 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
 
   @Override
   public Action[] getMenuEntries() {
-      List<Action> actions = new ArrayList<>();
-      actions.addAll(Arrays.asList(
-        LayerListDialog.getInstance().createActivateLayerAction(this),
+    List<Action> actions = new ArrayList<>();
+    actions.addAll(Arrays.asList(LayerListDialog.getInstance().createActivateLayerAction(this),
         LayerListDialog.getInstance().createShowHideLayerAction(),
-        LayerListDialog.getInstance().createDeleteLayerAction(),
-        SeparatorLayerAction.INSTANCE,
+        LayerListDialog.getInstance().createDeleteLayerAction(), SeparatorLayerAction.INSTANCE,
         LayerListDialog.getInstance().createMergeLayerAction(this)));
-      actions.addAll(Arrays.asList(
-        SeparatorLayerAction.INSTANCE,
-        new RenameLayerAction(getAssociatedFile(), this),
-        SeparatorLayerAction.INSTANCE,
-        new RequestDataAction()));
-      return actions.toArray(new Action[0]);
+    actions.addAll(Arrays.asList(SeparatorLayerAction.INSTANCE, new RenameLayerAction(getAssociatedFile(), this),
+        SeparatorLayerAction.INSTANCE, new RequestDataAction(followDataSet)));
+    return actions.toArray(new Action[0]);
   }
 
   static class RequestDataAction extends AbstractAction {
     private static final long serialVersionUID = 8823333297547249069L;
+    private final OsmData<?, ?, ?, ?> data;
 
-    public RequestDataAction() {
+    public RequestDataAction(DataSet data) {
       super(tr("Request Data"));
+      this.data = data;
       MapillaryPlugin.LOGO.getResource().attachImageIcon(this, true);
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-      OpenBrowser.displayUrl("https://mapillary.github.io/mapillary_solutions/data-request/");
+      String bbox = "?bbox="
+        + String.join(";",
+          data.getDataSourceBounds().stream()
+          .map(Bounds::toBBox).map(b -> b.toStringCSV(",")).collect(Collectors.toList()));
+      OpenBrowser.displayUrl("https://mapillary.github.io/mapillary_solutions/data-request" + bbox);
     }
   }
 
@@ -368,6 +401,15 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
     List<? extends PointObjectLayer> layers = MainApplication.getLayerManager().getLayersOfType(this.getClass());
     if (layers.isEmpty() || (layers.size() == 1 && this.equals(layers.get(0))))
       MapPaintStyles.removeStyle(mapcss);
+    data.removeDataSetListener(dataSetListenerAdapter);
+    data.removeDataSetListener(MultipolygonCache.getInstance());
+    data.removeHighlightUpdateListener(this);
+    data.removeSelectionListener(this);
+    if (MapillaryLayer.hasInstance()) {
+      MapillaryLayer.getInstance().getData().removeListener(this);
+    }
+    MainApplication.getLayerManager().removeLayerChangeListener(this);
+
   }
 
   @Override
@@ -484,6 +526,66 @@ public class PointObjectLayer extends OsmDataLayer implements DataSourceListener
   @Override
   public void mouseExited(MouseEvent e) {
     // Do nothing
+  }
+
+  @Override
+  public boolean isModified() {
+    return false;
+  }
+
+  @Override
+  public void visitBoundingBox(BoundingXYVisitor v) {
+    for (final Node n : data.getNodes()) {
+      if (n.isUsable()) {
+        v.visit(n);
+      }
+    }
+  }
+
+  @Override
+  public void highlightUpdated(HighlightUpdateEvent e) {
+    invalidate();
+  }
+
+  @Override
+  public void processDatasetEvent(AbstractDatasetChangedEvent event) {
+    invalidate();
+  }
+
+  @Override
+  public void layerAdded(LayerAddEvent e) {
+    if (e.getAddedLayer() instanceof MapillaryLayer) {
+      ((MapillaryLayer) e.getAddedLayer()).getData().addListener(this);
+    }
+  }
+
+  @Override
+  public void layerRemoving(LayerRemoveEvent e) {
+    if (e.getRemovedLayer() instanceof MapillaryLayer) {
+      ((MapillaryLayer) e.getRemovedLayer()).getData().removeListener(this);
+    }
+  }
+
+  @Override
+  public void layerOrderChanged(LayerOrderChangeEvent e) {
+    // Don't care
+  }
+
+  @Override
+  public void imagesAdded() {
+    // Don't care
+  }
+
+  @Override
+  public void selectedImageChanged(MapillaryAbstractImage oldImage, MapillaryAbstractImage newImage) {
+    data.clearSelection();
+    if (newImage instanceof MapillaryImage) {
+      MapillaryImage image = (MapillaryImage) newImage;
+      Collection<INode> nodes = image.getDetections().parallelStream().map(ImageDetection::getKey).flatMap(
+        d -> data.getNodes().parallelStream().filter(n -> n.hasKey("detections") && n.get("detections").contains(d))
+      ).collect(Collectors.toList());
+      data.setSelected(nodes);
+    }
   }
 
 }

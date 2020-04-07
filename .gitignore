@@ -20,4 +20,8 @@
 /.gradle/
 
 /test/data/preferences/
+
+#Netbeans
+/.nb-gradle/
+
 /bin-test/

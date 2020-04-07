@@ -4,10 +4,12 @@ package org.openstreetmap.josm.plugins.mapillary.gui;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import static org.openstreetmap.josm.plugins.mapillary.utils.TestUtil.getPrivateFieldValue;
 
 import java.awt.GraphicsEnvironment;
+import java.time.Duration;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -16,6 +18,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SpinnerNumberModel;
 
+import org.awaitility.Awaitility;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -35,9 +38,7 @@ public class MapillaryPreferenceSettingTest {
 
   @Test
   public void testAddGui() {
-    if (GraphicsEnvironment.isHeadless()) {
-      return;
-    }
+    assumeTrue(!GraphicsEnvironment.isHeadless());
     PreferenceTabbedPane tabs = new PreferenceTabbedPane();
     tabs.buildGui();
     int displayTabs = tabs.getDisplayPreference().getTabPane().getTabCount();
@@ -54,9 +55,7 @@ public class MapillaryPreferenceSettingTest {
 
   @Test
   public void testLoginLogout() {
-    if (GraphicsEnvironment.isHeadless()) {
-      return;
-    }
+    assumeTrue(!GraphicsEnvironment.isHeadless());
     PreferenceTabbedPane tabs = new PreferenceTabbedPane();
     tabs.buildGui();
     MapillaryPreferenceSetting setting = new MapillaryPreferenceSetting();
@@ -75,6 +74,7 @@ public class MapillaryPreferenceSettingTest {
     setting.onLogin(username);
 
     assertEquals(I18n.tr("Login"), ((JButton) getPrivateFieldValue(setting, loginButton)).getText());
+    Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> I18n.tr("You are logged in as ''{0}''.", username).equals(((JLabel) getPrivateFieldValue(setting, "loginLabel")).getText()));
     assertEquals(I18n.tr("You are logged in as ''{0}''.", username), ((JLabel) getPrivateFieldValue(setting, "loginLabel")).getText());
     assertTrue(((JPanel) getPrivateFieldValue(setting, loginPanel)).isAncestorOf((JButton) getPrivateFieldValue(setting, "logoutButton")));
     assertFalse(((JPanel) getPrivateFieldValue(setting, loginPanel)).isAncestorOf((JButton) getPrivateFieldValue(setting, loginButton)));

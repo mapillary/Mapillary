@@ -22,7 +22,7 @@ import org.openstreetmap.josm.tools.Logging;
 public final class MapillaryURL {
   /** Base URL of the Mapillary API. */
   private static final String BASE_API_V2_URL = "https://a.mapillary.com/v2/";
-  private static final String CLIENT_ID = "T1Fzd20xZjdtR0s1VDk5OFNIOXpYdzoxNDYyOGRkYzUyYTFiMzgz";
+  private static final String CLIENT_ID = "UTZhSnNFdGpxSEFFREUwb01GYzlXZzpjNGViMzQxMTIzMjY0MjZm";
   private static final String TRAFFIC_SIGN_LAYER = "trafficsigns";
   private static final String POINT_FEATURES_LAYER = "points";
   private static final String LINE_FEATURES_LAYER = "lines";
@@ -67,6 +67,24 @@ public final class MapillaryURL {
       return Collections.singleton(string2URL(baseUrl, "images", queryString(bounds)));
     }
 
+    public static URL retrieveOrganizationss(String user) {
+      return string2URL(baseUrl, "users/" + user + "/organizations", queryString(null));
+    }
+    
+    public static URL retrieveOrganization(String organization) {
+      return string2URL(baseUrl, "organizations/" + organization, queryString(null));
+    }
+
+    /**
+     * Attempt to get an organization URL for the avatar
+     *
+     * @param organization The key to get the avatar from
+     * @return A URL to get data from
+     */
+    public static URL retrieveOrganizationAvatar(String organization) {
+      return string2URL(baseUrl, "organizations/" + organization + "/avatar", queryString(null));
+    }
+
     /**
      * Get the URL for Traffic Sign map features
      *
@@ -74,7 +92,7 @@ public final class MapillaryURL {
      * @return A URL to use to get traffic sign map features
      */
     public static URL searchMapObjects(final Bounds bounds) {
-      return string2URL(baseUrl, "map_features", queryString(bounds, getDetectionLayers()) + SORT_BY_KEY);
+      return string2URL(baseUrl, "map_features", queryString(bounds, TRAFFIC_SIGN_LAYER) + SORT_BY_KEY);
     }
 
     /**
@@ -238,7 +256,7 @@ public final class MapillaryURL {
         parts.put("redirect_uri", redirectURI);
       }
       parts.put("response_type", "token");
-      parts.put("scope", "user:read org:read public:upload public:write private:read");
+      parts.put("scope", "user:read public:upload public:write private:read");
       return string2URL(baseUrl, "connect", queryString(parts));
     }
 
